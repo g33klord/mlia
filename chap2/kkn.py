@@ -1,3 +1,4 @@
+import os
 import operator
 
 import pandas as pd
@@ -22,7 +23,7 @@ def classify(inx, dataset, labels, K=5):
 
     diff_matrix = inx_matrix - dataset
     square_diff_matrix = diff_matrix ** 2
-    square_distance = square_diff_matrix.sum(axis=1)
+    square_distance = square_diff_matrix.sum(axis=1)  # axis 1 = column
     distance = square_distance ** 0.5
 
     sorted_distance_indicies = distance.argsort()
@@ -45,12 +46,10 @@ def file2matrix(filename):
     :param filename: local filepath or web address to file
     :return: dataset, labels
     """
-    header_names = ["frequentFlyerMiles", "VideoGamePlayedHour", "IceCreamEatenLiter", "labels"]
-    dataset = pd.read_csv(filename, sep='\t', names=header_names)  # provided sample is tab separated
+    dataset = pd.read_csv(filename, sep='\t', header=None)  # provided sample is tab separated
 
-    features_matrix = dataset.loc[:, : "IceCreamEatenLiter"]
-    label_vector = dataset.loc[:, "labels"]
-
+    features_matrix = dataset.loc[:, : 2]
+    label_vector = dataset.loc[:, 3]
     return features_matrix, label_vector
 
 
@@ -71,7 +70,7 @@ def auto_norm(dataset):
 
 def dating_class_test():
     ho_ratio = 0.10
-    dating_data_matrix, dating_labels = file2matrix('datingTestSet')
+    dating_data_matrix, dating_labels = file2matrix('datingTestSet2')
     normalized_matrix, ranges, min_values = auto_norm(dating_data_matrix)
     m = normalized_matrix.shape[0]
     num_test_vecs = int(m * ho_ratio)
@@ -79,9 +78,9 @@ def dating_class_test():
 
     for i in range(num_test_vecs):
         classifier_result = classify(
-            normalized_matrix.loc[i, :],
-            normalized_matrix.loc[num_test_vecs:m, :],
-            dating_labels.loc[num_test_vecs:m], 3
+            normalized_matrix.iloc[i, :],
+            normalized_matrix.iloc[num_test_vecs:m, :],
+            dating_labels.iloc[num_test_vecs:m], 3
         )
         print(f"Result: {classifier_result}, Expected: {dating_labels[i]}")
         if classifier_result != dating_labels[i]:
@@ -100,3 +99,52 @@ def classify_person():
 
     classifier_result = classify(input_array, normalized_matrix, dating_label)
     print(f"Result: {classifier_result}")
+
+
+def image2vector(filename):
+    """
+    convert image text file to vector
+    :param filename:
+    :return: 1X1024 vector
+    """
+    dataframe = pd.read_fwf(filename, widths=[1] * 32, header=None)  # 32 X 32 matrix
+    # http://pandas.pydata.org/pandas-docs/version/0.20/generated/pandas.read_fwf.html
+    return pd.np.ravel(dataframe)  # 1 X 1024 matrix
+
+
+def handwriting_class_test():
+    # preparing Training dataset
+    print('preparing Training dataset')
+    tranining_file_list = os.listdir("digits/trainingDigits")
+    m = len(tranining_file_list)
+    hw_labels = pd.Series(index=range(m))
+    training_matrix = pd.DataFrame(index=range(m), columns=range(1024))
+
+    for i in range(m):
+        file_name = tranining_file_list[i]
+        print('.', end='')
+        print('')
+        # extract digit class from file name (first char of filename is the digit)
+        digit_class = int(file_name[0])
+
+        hw_labels.loc[i, 0] = digit_class
+        training_matrix.loc[i, :] = image2vector(f'digits/trainingDigits/{file_name}')
+
+    # Testing
+    print('Testing')
+    test_file_list = os.listdir("digits/testDigits")
+    error_count = 0.0
+    m_test = len(test_file_list)
+
+    for i in range(m_test):
+        file_name = test_file_list[i]
+        digit_class = int(file_name[0])
+        vector_under_test = image2vector(f'digits/testDigits/{file_name}')
+        classifier_result = classify(vector_under_test, training_matrix, hw_labels, 3)
+
+        print(f'Result: {classifier_result}, Expected: {digit_class}')
+
+        if classifier_result != digit_class:
+            error_count += 1.0
+    print(f'Total Error: {int(error_count)}')
+    print(f'Error rate: {error_count/float(m_test)}')

@@ -10,6 +10,7 @@ name = "pypi"
 pandas = "*"
 sympy = "*"
 matplotlib = "*"
+ipython = "*"
 
 
 [dev-packages]
